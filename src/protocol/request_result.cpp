@@ -1,5 +1,8 @@
 ﻿#include "protocol/request_result.hpp"
+<<<<<<< HEAD
 #include "protocol/codec.hpp" // encode_u16 / decode_u16
+=======
+>>>>>>> 88738584d3845edc781a973d14d7f7f9e687cfae
 
 #include <cstring>
 #include <limits>

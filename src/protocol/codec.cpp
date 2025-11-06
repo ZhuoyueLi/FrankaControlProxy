@@ -35,7 +35,23 @@ std::vector<uint8_t> encodeStateMessage(const protocol::FrankaArmState& state) {
     return encodeMessage(header, payload);
 }
 
+<<<<<<< HEAD
 // GET_FRANKA_ARM_CONTROL_MODE_RESP
+=======
+//Gripper:GET_STATE_RESP/PUB_STATE
+std::vector<uint8_t> encodeGripperMessage(const FrankaGripperState& gripper_state) {
+    auto payload = gripper_state.gripper_encode();  // 23B
+    MessageHeader header{};
+    header.message_type   = static_cast<uint8_t>(MsgID::GET_STATE_RESP);
+    header.flags          = 0;
+    header.payload_length = static_cast<uint16_t>(payload.size());
+    header.timestamp      = 0;
+    return encodeMessage(header, payload);
+}
+
+
+// QUERY_STATE_RESP
+>>>>>>> 88738584d3845edc781a973d14d7f7f9e687cfae
 std::vector<uint8_t> encodeModeMessage(uint8_t mode_code) {
     std::vector<uint8_t> payload{mode_code}; 
     MessageHeader header{};
@@ -43,6 +59,7 @@ std::vector<uint8_t> encodeModeMessage(uint8_t mode_code) {
     header.flags          = 0;
     header.payload_length = static_cast<uint16_t>(payload.size()); // 1 byte
     header.timestamp      = 0;
+<<<<<<< HEAD
     return encodeMessage(header, payload);
 }
 //RequestResult_RESP
@@ -64,6 +81,8 @@ std::vector<uint8_t> encodePubPortMessage(uint16_t Pubport)
     header.flags          = 0;
     header.payload_length = static_cast<uint16_t>(payload.size());
     header.timestamp      = 0;
+=======
+>>>>>>> 88738584d3845edc781a973d14d7f7f9e687cfae
     return encodeMessage(header, payload);
 }
 
@@ -82,6 +101,7 @@ std::vector<uint8_t> encodePubPortMessage(uint16_t Pubport)
 //     };
 //     return protocol::encodeMessage(header, payload);
 // }
+<<<<<<< HEAD
 
 
 // ERROR
@@ -94,6 +114,32 @@ std::vector<uint8_t> encodePubPortMessage(uint16_t Pubport)
 //     header.timestamp      = 0;
 //     return encodeMessage(header, payload);
 // }
+=======
+std::vector<uint8_t> encodeStartControlResp(bool success, ModeID mode_id) {
+    MessageHeader header{};
+    header.message_type   = static_cast<uint8_t>(protocol::MsgID::SET_CONTROL_MODE_RESP);
+    header.flags          = 0;
+    header.payload_length = 2;
+    header.timestamp      = 0;
+    std::vector<uint8_t> payload = {
+        static_cast<uint8_t>(success ? 0x00 : 0x01),
+        static_cast<uint8_t>(mode_id)
+    };
+    return protocol::encodeMessage(header, payload);
+}
+
+
+// ERROR
+std::vector<uint8_t> encodeErrorMessage(uint8_t error_code) {
+    std::vector<uint8_t> payload{error_code};
+    MessageHeader header{};
+    header.message_type   = static_cast<uint8_t>(MsgID::ERROR);
+    header.flags          = 0;
+    header.payload_length = static_cast<uint16_t>(payload.size());
+    header.timestamp      = 0;
+    return encodeMessage(header, payload);
+}
+>>>>>>> 88738584d3845edc781a973d14d7f7f9e687cfae
 
 //Arm:SUB_STATE need to check
 // bool decodeStateMessage(const std::vector<uint8_t>& data, FrankaArmState& arm_state) {
@@ -124,6 +170,7 @@ std::vector<uint8_t> encodePubPortMessage(uint16_t Pubport)
 //     }
 // }
 
+<<<<<<< HEAD
 
 
 
@@ -139,5 +186,11 @@ std::vector<uint8_t> encodePubPortMessage(uint16_t Pubport)
 // }
 
 
+=======
+// Server -> Client: wrap RequestResult to message
+std::vector<uint8_t> encodeRequestResultMessage(const RequestResult& result) {
+    return result.encodeMessage();
+}
+>>>>>>> 88738584d3845edc781a973d14d7f7f9e687cfae
 
 }  // namespace protocol
