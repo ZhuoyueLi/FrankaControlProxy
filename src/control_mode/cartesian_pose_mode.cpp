@@ -70,7 +70,6 @@ void CartesianPoseMode::controlLoop() {
                 LOG_ERROR("[CartesianPoseMode] Recovery failed: {}", ex.what());
             }
         }
-    
     }
 }
 

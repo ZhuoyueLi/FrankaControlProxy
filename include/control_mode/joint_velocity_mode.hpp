@@ -9,10 +9,11 @@ class JointVelocityMode : public AbstractControlMode {
 public:
     JointVelocityMode();
     ~JointVelocityMode() override;
-    void controlLoop() override;
+    
     protocol::ModeID getModeID() const override;
 private:
     AtomicDoubleBuffer<franka::JointVelocities> desired_velocities_;
+    void controlLoop() override;
     void writeCommand(const protocol::ByteView& data) override;
     void writeZeroCommand() override;
 };

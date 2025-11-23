@@ -24,30 +24,36 @@ void JointVelocityMode::controlLoop() {
 
     std::function<franka::JointVelocities(const franka::RobotState&, franka::Duration)> joint_velocity_callback =
         [this](const franka::RobotState& state, franka::Duration) -> franka::JointVelocities {
-            if (!is_running_) {
-                throw franka::ControlException("JointVelocityMode stopped.");
-            }
+            // if (!is_running_) {
+            //     throw franka::ControlException("JointVelocityMode stopped.");
+            // }
             updateRobotState(state);
-            franka::JointVelocities desired_velocities = desired_velocities_.read();
+            auto desired = desired_velocities_.read();
             if (!is_running_) {
                 return franka::MotionFinished(desired_velocities);
             }
-            return desired_velocities;
+            return desired;
         };
-
-    try {
-        robot_->control(joint_velocity_callback);
-    } catch (const franka::ControlException& e) {
-        LOG_ERROR("[JointVelocityMode] Exception: {}", e.what());
-        if (std::string(e.what()).find("reflex") != std::string::npos) {
-            LOG_WARN("[JointVelocityMode] Reflex detected, attempting automatic recovery...");
-            try {
-                robot_->automaticErrorRecovery();
-            } catch (const franka::Exception& recovery_error) {
-                LOG_ERROR("Recovery failed: {}", recovery_error.what());
+    bool is_robot_operational = true;
+    while (is_running_ && is_robot_operational) {
+        try {
+            robot_->control(joint_velocity_callback);
+    } catch (const std::exception &ex) {
+        LOG_ERROR("[JointVelocityMode] Robot is unable to be controlled: {}", ex.what());
+        is_robot_operational = false;
+    }
+    for (int i = 0; i < 3; i++) {
+        LOG_WARN("[JointVelocityMode] Waiting {} seconds before recovery attempt...", 3);
+        usleep(1000 * 3);
+        try {
+            robot_->automaticErrorRecovery();
+            LOG_INFO("[JointVelocityMode] Robot operation recovered.");
+            is_robot_operational = true;
+            break;
+            } catch (const std::exception &ex) {
+                LOG_ERROR("[JointVelocityModes] Recovery failed: {}", ex.what());
             }
         }
-        LOG_INFO("[JointVelocityMode] Exited.");
     }
 }
 

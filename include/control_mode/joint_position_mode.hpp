@@ -9,10 +9,11 @@ class JointPositionMode : public AbstractControlMode {
 public:
     JointPositionMode();
     ~JointPositionMode() override;
-    void controlLoop() override;
+
     protocol::ModeID getModeID() const override;
 private:
     AtomicDoubleBuffer<franka::JointPositions> desired_positions_;
+    void controlLoop() override;
     void writeCommand(const protocol::ByteView& data) override;
     void writeZeroCommand() override;
 };
