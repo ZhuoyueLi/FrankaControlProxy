@@ -2,9 +2,6 @@
 #include "franka_arm_proxy.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cstdint>
-#include <cstring>
 
 static std::atomic<bool> running_flag{true}; // let ctrl-c stop the server
 static void signalHandler(int signum)
@@ -167,88 +164,12 @@ std::string FrankaArmProxy::getFrankaArmControlMode(const zlc::Empty&)
     return current_control_mode_->getModeName();
 }
 
-namespace
-{
-bool isLittleEndian()
-{
-    const uint16_t value = 1;
-    return *reinterpret_cast<const uint8_t*>(&value) == 1;
-}
-
-bool decodeBigEndianDoubles(const std::vector<uint8_t>& payload,
-                            std::array<double, 7>& out)
-{
-    constexpr size_t kCount = 7;
-    constexpr size_t kBytesPer = sizeof(double);
-    if (payload.size() != kCount * kBytesPer)
-    {
-        return false;
-    }
-    const bool little = isLittleEndian();
-    for (size_t i = 0; i < kCount; ++i)
-    {
-        const uint8_t* src = payload.data() + i * kBytesPer;
-        uint8_t buf[kBytesPer];
-        if (little)
-        {
-            for (size_t j = 0; j < kBytesPer; ++j)
-            {
-                buf[j] = src[kBytesPer - 1 - j];
-            }
-        }
-        else
-        {
-            std::memcpy(buf, src, kBytesPer);
-        }
-        std::memcpy(&out[i], buf, kBytesPer);
-    }
-    return true;
-}
-
-bool decodeBigEndianDoubles(const std::vector<uint8_t>& payload,
-                            std::array<double, 16>& out)
-{
-    constexpr size_t kCount = 16;
-    constexpr size_t kBytesPer = sizeof(double);
-    if (payload.size() != kCount * kBytesPer)
-    {
-        return false;
-    }
-    const bool little = isLittleEndian();
-    for (size_t i = 0; i < kCount; ++i)
-    {
-        const uint8_t* src = payload.data() + i * kBytesPer;
-        uint8_t buf[kBytesPer];
-        if (little)
-        {
-            for (size_t j = 0; j < kBytesPer; ++j)
-            {
-                buf[j] = src[kBytesPer - 1 - j];
-            }
-        }
-        else
-        {
-            std::memcpy(buf, src, kBytesPer);
-        }
-        std::memcpy(&out[i], buf, kBytesPer);
-    }
-    return true;
-}
-} // namespace
-
 std::pair<std::string, std::vector<uint8_t>> FrankaArmProxy::moveFrankaArmToJointPosition(
-    const std::vector<uint8_t>& payload)
+    const std::array<double, 7>& target_q)
 {
     if (!current_control_mode_)
     {
         return {std::string(protocol::FrankaResponseCode::FAIL), {}};
-    }
-    std::array<double, 7> target_q{};
-    if (!decodeBigEndianDoubles(payload, target_q))
-    {
-        zlc::warn("moveFrankaArmToJointPosition: invalid payload size {} (expected 56)",
-                  payload.size());
-        return {std::string(protocol::FrankaResponseCode::INVALID_ARG), {}};
     }
     current_control_mode_->stopControl();
     const bool ok = current_control_mode_->moveToJointPosition(target_q);
@@ -258,21 +179,14 @@ std::pair<std::string, std::vector<uint8_t>> FrankaArmProxy::moveFrankaArmToJoin
 }
 
 std::pair<std::string, std::vector<uint8_t>> FrankaArmProxy::moveFrankaArmToCartesianPosition(
-    const std::vector<uint8_t>& payload)
+    const std::array<double, 16>& target_pose)
 {
     if (!current_control_mode_)
     {
         return {std::string(protocol::FrankaResponseCode::FAIL), {}};
     }
-    std::array<double, 16> target_position{};
-    if (!decodeBigEndianDoubles(payload, target_position))
-    {
-        zlc::warn("moveFrankaArmToCartesianPosition: invalid payload size {} (expected 128)",
-                  payload.size());
-        return {std::string(protocol::FrankaResponseCode::INVALID_ARG), {}};
-    }
     current_control_mode_->stopControl();
-    const bool ok = current_control_mode_->moveToCartesianPosition(target_position);
+    const bool ok = current_control_mode_->moveToCartesianPosition(target_pose);
     return {std::string(ok ? protocol::FrankaResponseCode::SUCCESS
                            : protocol::FrankaResponseCode::FAIL),
             {}};
