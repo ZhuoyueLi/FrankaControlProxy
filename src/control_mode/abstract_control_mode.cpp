@@ -1,5 +1,9 @@
 #include "control_mode/abstract_control_mode.hpp"
 
+#include <franka/command_types.h>
+
+#include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 void ControllerConfig::readBaseConfig(const ConfigFileReader& reader)
@@ -90,6 +94,170 @@ void AbstractControlMode::controlTask()
         }
     }
     zlc::info("[{}] Control thread ended.", getModeName());
+}
+
+bool AbstractControlMode::moveToJointPosition(const std::array<double, NUM_DOFS>& target_q,
+                                              double max_velocity, double tolerance)
+{
+#if NO_ROBOT_TESTING
+    zlc::error("[{}] moveToJointPosition is not supported in NO_ROBOT_TESTING mode.",
+               getModeName());
+    return false;
+#else
+    if (!robot_)
+    {
+        zlc::error("[{}] moveToJointPosition failed: robot not initialized.", getModeName());
+        return false;
+    }
+    if (is_running_)
+    {
+        zlc::warn("[{}] moveToJointPosition rejected: control thread is running.", getModeName());
+        return false;
+    }
+    for (size_t i = 0; i < NUM_DOFS; ++i)
+    {
+        if (target_q[i] < safety_config_.joint_pos_lower_limits[i] ||
+            target_q[i] > safety_config_.joint_pos_upper_limits[i])
+        {
+            zlc::error("[{}] moveToJointPosition target out of limits at index {}: {}",
+                       getModeName(), i, target_q[i]);
+            return false;
+        }
+    }
+    const double clamped_velocity = std::clamp(max_velocity, 0.001, 0.5);
+    const double stop_tolerance = std::max(tolerance, 1e-6);
+
+    auto motion_callback = [target_q, clamped_velocity,
+                            stop_tolerance](const franka::RobotState& state,
+                                            franka::Duration period) -> franka::JointPositions
+    {
+        double dt = 0.001;
+        try
+        {
+            dt = std::max(period.toSec(), 1e-6);
+        }
+        catch (...)
+        {
+        }
+        std::array<double, NUM_DOFS> q_des = state.q;
+        bool finished = true;
+        for (size_t i = 0; i < NUM_DOFS; ++i)
+        {
+            const double delta = target_q[i] - state.q[i];
+            const double step = std::clamp(delta, -clamped_velocity * dt, clamped_velocity * dt);
+            q_des[i] = state.q[i] + step;
+            if (std::abs(delta) > stop_tolerance)
+            {
+                finished = false;
+            }
+        }
+        franka::JointPositions output(q_des);
+        if (finished)
+        {
+            return franka::MotionFinished(output);
+        }
+        return output;
+    };
+
+    try
+    {
+        robot_->control(motion_callback);
+        return true;
+    }
+    catch (const franka::Exception& e)
+    {
+        zlc::error("[{}] moveToJointPosition failed: {}", getModeName(), e.what());
+        return tryRecovery();
+    }
+    catch (const std::exception& e)
+    {
+        zlc::error("[{}] moveToJointPosition failed: {}", getModeName(), e.what());
+        return false;
+    }
+#endif
+}
+
+bool AbstractControlMode::moveToCartesianPosition(
+    const std::array<double, 16>& target_pose, double max_velocity, double tolerance)
+{
+#if NO_ROBOT_TESTING
+    zlc::error("[{}] moveToCartesianPosition is not supported in NO_ROBOT_TESTING mode.",
+               getModeName());
+    return false;
+#else
+    if (!robot_)
+    {
+        zlc::error("[{}] moveToCartesianPosition failed: robot not initialized.", getModeName());
+        return false;
+    }
+    if (is_running_)
+    {
+        zlc::warn("[{}] moveToCartesianPosition rejected: control thread is running.",
+                  getModeName());
+        return false;
+    }
+    for (size_t i = 0; i < 3; ++i)
+    {
+        const double value = target_pose[12 + i];
+        if (value < safety_config_.cartesian_pos_lower_limits[i] ||
+            value > safety_config_.cartesian_pos_upper_limits[i])
+        {
+            zlc::error("[{}] moveToCartesianPosition target out of limits at index {}: {}",
+                       getModeName(), i, value);
+            return false;
+        }
+    }
+    const double clamped_velocity = std::clamp(max_velocity, 0.001, 0.3);
+    const double stop_tolerance = std::max(tolerance, 1e-6);
+
+    auto motion_callback = [target_pose, clamped_velocity,
+                            stop_tolerance](const franka::RobotState& state,
+                                            franka::Duration period) -> franka::CartesianPose
+    {
+        double dt = 0.001;
+        try
+        {
+            dt = std::max(period.toSec(), 1e-6);
+        }
+        catch (...)
+        {
+        }
+        std::array<double, 16> pose = state.O_T_EE;
+        bool finished = true;
+        for (size_t i = 0; i < 16; ++i)
+        {
+            const double delta = target_pose[i] - pose[i];
+            const double step = std::clamp(delta, -clamped_velocity * dt, clamped_velocity * dt);
+            pose[i] += step;
+            if (std::abs(delta) > stop_tolerance)
+            {
+                finished = false;
+            }
+        }
+        franka::CartesianPose output(pose);
+        if (finished)
+        {
+            return franka::MotionFinished(output);
+        }
+        return output;
+    };
+
+    try
+    {
+        robot_->control(motion_callback);
+        return true;
+    }
+    catch (const franka::Exception& e)
+    {
+        zlc::error("[{}] moveToCartesianPosition failed: {}", getModeName(), e.what());
+        return tryRecovery();
+    }
+    catch (const std::exception& e)
+    {
+        zlc::error("[{}] moveToCartesianPosition failed: {}", getModeName(), e.what());
+        return false;
+    }
+#endif
 }
 
 bool AbstractControlMode::tryRecovery(int max_attempts)

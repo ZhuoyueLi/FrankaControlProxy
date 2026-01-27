@@ -11,6 +11,7 @@
 
 #include "control_mode/control_mode.hpp"
 #include "protocol/msg.hpp"
+#include "protocol/request_result.hpp"
 #include "utils/atomic_double_buffer.hpp"
 #include "utils/config_file_reader.hpp"
 #include "utils/robot_model.hpp"
@@ -129,6 +130,10 @@ class FrankaArmProxy
     // Service callbacks
     FrankaArmState getFrankaArmState(const zlc::Empty&); // Gets the current state of the Franka arm
     std::string getFrankaArmControlMode(const zlc::Empty&);
+    std::pair<std::string, std::vector<uint8_t>> moveFrankaArmToJointPosition(
+        const std::vector<uint8_t>& payload);
+    std::pair<std::string, std::vector<uint8_t>> moveFrankaArmToCartesianPosition(
+        const std::vector<uint8_t>& payload);
 
     void statePublishThread();
 };

@@ -67,6 +67,10 @@ class AbstractControlMode
     void stopControl();
     const std::string getModeName();
     void controlTask();
+    bool moveToJointPosition(const std::array<double, NUM_DOFS>& target_q,
+                             double max_velocity = 0.05, double tolerance = 1e-4);
+    bool moveToCartesianPosition(const std::array<double, 16>& target_pose,
+                                 double max_velocity = 0.02, double tolerance = 1e-4);
 
   protected:
     AbstractControlMode(const SafetyLimitConfig& safety_config) : safety_config_(safety_config) {}
