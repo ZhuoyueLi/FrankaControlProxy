@@ -165,28 +165,44 @@ std::string FrankaArmProxy::getFrankaArmControlMode(const zlc::Empty&)
 }
 
 std::pair<std::string, std::vector<uint8_t>> FrankaArmProxy::moveFrankaArmToJointPosition(
-    const std::array<double, 7>& target_q)
+    const std::vector<double>& target_q)
 {
     if (!current_control_mode_)
     {
         return {std::string(protocol::FrankaResponseCode::FAIL), {}};
     }
+    if (target_q.size() != 7)
+    {
+        zlc::warn("moveFrankaArmToJointPosition: invalid payload size {} (expected 7)",
+                  target_q.size());
+        return {std::string(protocol::FrankaResponseCode::INVALID_ARG), {}};
+    }
+    std::array<double, 7> target_q_array{};
+    std::copy(target_q.begin(), target_q.end(), target_q_array.begin());
     current_control_mode_->stopControl();
-    const bool ok = current_control_mode_->moveToJointPosition(target_q);
+    const bool ok = current_control_mode_->moveToJointPosition(target_q_array);
     return {std::string(ok ? protocol::FrankaResponseCode::SUCCESS
                            : protocol::FrankaResponseCode::FAIL),
             {}};
 }
 
 std::pair<std::string, std::vector<uint8_t>> FrankaArmProxy::moveFrankaArmToCartesianPosition(
-    const std::array<double, 16>& target_pose)
+    const std::vector<double>& target_pose)
 {
     if (!current_control_mode_)
     {
         return {std::string(protocol::FrankaResponseCode::FAIL), {}};
     }
+    if (target_pose.size() != 16)
+    {
+        zlc::warn("moveFrankaArmToCartesianPosition: invalid payload size {} (expected 16)",
+                  target_pose.size());
+        return {std::string(protocol::FrankaResponseCode::INVALID_ARG), {}};
+    }
+    std::array<double, 16> target_pose_array{};
+    std::copy(target_pose.begin(), target_pose.end(), target_pose_array.begin());
     current_control_mode_->stopControl();
-    const bool ok = current_control_mode_->moveToCartesianPosition(target_pose);
+    const bool ok = current_control_mode_->moveToCartesianPosition(target_pose_array);
     return {std::string(ok ? protocol::FrankaResponseCode::SUCCESS
                            : protocol::FrankaResponseCode::FAIL),
             {}};

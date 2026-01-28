@@ -124,10 +124,28 @@ bool AbstractControlMode::moveToJointPosition(const std::array<double, NUM_DOFS>
             return false;
         }
     }
-    const double clamped_velocity = std::clamp(max_velocity, 0.001, 0.5);
-    const double stop_tolerance = std::max(tolerance, 1e-6);
+    //limit velocity between 0.001 and 0.3 rad/s
+    const double clamped_velocity = std::clamp(max_velocity, 0.001, 0.3);  // rad/s
+    const double max_acceleration = 0.5;  // rad/s^2  -set a reasonable acceleration limit
+    const double stop_tolerance = std::max(tolerance, 1e-4);
 
-    auto motion_callback = [target_q, clamped_velocity,
+    //use a struct to hold motion state
+    struct MotionState
+    {
+        std::array<double, NUM_DOFS> q_start;
+        std::array<double, NUM_DOFS> q_target;
+        std::array<double, NUM_DOFS> current_velocity;
+        double elapsed_time = 0.0;
+        bool initialized = false;
+    };
+    auto motion_state = std::make_shared<MotionState>();
+    motion_state->current_velocity = {};
+
+    // target_q is captured by value to ensure its validity inside the callback
+    auto motion_state_ptr = motion_state;
+    std::array<double, NUM_DOFS> target_q_copy = target_q;
+    
+    auto motion_callback = [motion_state_ptr, target_q_copy, clamped_velocity, max_acceleration,
                             stop_tolerance](const franka::RobotState& state,
                                             franka::Duration period) -> franka::JointPositions
     {
@@ -139,18 +157,65 @@ bool AbstractControlMode::moveToJointPosition(const std::array<double, NUM_DOFS>
         catch (...)
         {
         }
+
+        // First execution: initialize
+        if (!motion_state_ptr->initialized)
+        {
+            motion_state_ptr->q_start = state.q;
+            motion_state_ptr->q_target = target_q_copy;  // Use captured target_q
+            motion_state_ptr->current_velocity = {};
+            motion_state_ptr->elapsed_time = 0.0;
+            motion_state_ptr->initialized = true;
+        }
+
         std::array<double, NUM_DOFS> q_des = state.q;
         bool finished = true;
+
         for (size_t i = 0; i < NUM_DOFS; ++i)
         {
-            const double delta = target_q[i] - state.q[i];
-            const double step = std::clamp(delta, -clamped_velocity * dt, clamped_velocity * dt);
-            q_des[i] = state.q[i] + step;
-            if (std::abs(delta) > stop_tolerance)
+            const double error = motion_state_ptr->q_target[i] - state.q[i];
+            
+            // Calculate target velocity: gradually decelerate when approaching target
+            double target_velocity = 0.0;
+            const double direction = (error > 0) ? 1.0 : -1.0;
+            const double distance_to_target = std::abs(error);
+            
+            if (distance_to_target > stop_tolerance)
             {
+                // Use trapezoidal velocity profile: acceleration -> constant velocity -> deceleration
+                // Deceleration distance calculation: v^2 = 2*a*s => s = v^2 / (2*a)
+                const double deceleration_distance = (clamped_velocity * clamped_velocity) / (2.0 * max_acceleration);
+                
+                if (distance_to_target > deceleration_distance)
+                {
+                    // Not yet in deceleration phase, should accelerate to max velocity
+                    target_velocity = clamped_velocity * direction;
+                }
+                else
+                {
+                    // Deceleration phase: v = sqrt(2*a*s)
+                    target_velocity = direction * std::sqrt(2.0 * max_acceleration * distance_to_target);
+                }
                 finished = false;
             }
+            
+            // Smooth velocity control: limit acceleration to avoid sudden stops
+            const double velocity_error = target_velocity - motion_state_ptr->current_velocity[i];
+            const double max_accel_step = max_acceleration * dt;
+            const double velocity_step = std::clamp(velocity_error, -max_accel_step, max_accel_step);
+            motion_state_ptr->current_velocity[i] += velocity_step;
+            
+            // Update position
+            const double position_step = motion_state_ptr->current_velocity[i] * dt;
+            q_des[i] = state.q[i] + position_step;
+            
+            // Additional safety limit: ensure not exceeding joint limits
+            q_des[i] = std::clamp(q_des[i], safety_config_.joint_pos_lower_limits[i],
+                                  safety_config_.joint_pos_upper_limits[i]);
         }
+
+        motion_state_ptr->elapsed_time += dt;
+        
         franka::JointPositions output(q_des);
         if (finished)
         {
@@ -300,7 +365,7 @@ void AbstractControlMode::checkStateLimits(const franka::RobotState& robot_state
     }
 
     // Joint position limits
-    computeSafetyReflex(robot_state.q, safety_config_.joint_pos_lower_limits,
+    computeSafetyReflex(robot_state.q, safety_c    onfig_.joint_pos_lower_limits,
                         safety_config_.joint_pos_upper_limits, torque_out.tau_J,
                         safety_config_.margin_joint_pos, safety_config_.k_joint_pos);
 

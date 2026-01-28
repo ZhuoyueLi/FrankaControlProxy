@@ -131,9 +131,9 @@ class FrankaArmProxy
     FrankaArmState getFrankaArmState(const zlc::Empty&); // Gets the current state of the Franka arm
     std::string getFrankaArmControlMode(const zlc::Empty&);
     std::pair<std::string, std::vector<uint8_t>> moveFrankaArmToJointPosition(
-        const std::array<double, 7>& target_q);
+        const std::vector<double>& target_q);
     std::pair<std::string, std::vector<uint8_t>> moveFrankaArmToCartesianPosition(
-        const std::array<double, 16>& target_pose);
+        const std::vector<double>& target_pose);
 
     void statePublishThread();
 };
