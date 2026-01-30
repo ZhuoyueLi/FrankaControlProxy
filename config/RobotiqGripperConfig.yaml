@@ -1,0 +1,11 @@
+node_name: RobotiqGripper
+group: 224.0.0.1
+group_port: 7720
+group_name: "RobotControlGroup"
+proxy_ip: 127.0.0.1
+serial_port: "/dev/ttyUSB0"
+slave_address: 9
+baudrate: 115200
+command_topic: robotiq_command
+state_topic: robootiq_state
+GRIPPER_PUB_RATE_HZ: 100

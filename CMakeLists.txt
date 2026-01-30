@@ -41,6 +41,10 @@ include_directories(
     include/debugger
 )
 
+# Add local third_party robotiq driver
+add_subdirectory(third_party/robotiq_driver)
+
+
 # -----------------------------
 # Dependencies
 # -----------------------------
@@ -48,7 +52,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 find_package(Eigen3 3.3.9 REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem serialization system)
-find_package(MuJoCo REQUIRED)
+    find_package(MuJoCo REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(Franka REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -69,21 +73,22 @@ add_executable(proxy src/main.cpp ${SOURCES})
 # -----------------------------
 # Include dirs & libs
 # -----------------------------
-target_include_directories(proxy PRIVATE
-    include
-    ${Franka_INCLUDE_DIRS}
-    ${YAML_CPP_INCLUDE_DIR}
-    # ${pinocchio_INCLUDE_DIRS}
-)
+    target_include_directories(proxy PRIVATE
+        include
+        ${Franka_INCLUDE_DIRS}
+        ${YAML_CPP_INCLUDE_DIR}
+        # ${pinocchio_INCLUDE_DIRS}
+    )
 
-target_link_libraries(proxy
-    ${Franka_LIBRARIES}
-    ${YAML_CPP_LIBRARIES}
-    zerolancom::zerolancom
-    pinocchio::pinocchio
-    Eigen3::Eigen
-    MuJoCo::MuJoCo
-    glfw
-    GL
-    X11
-)
+    target_link_libraries(proxy
+        ${Franka_LIBRARIES}
+        ${YAML_CPP_LIBRARIES}
+        zerolancom::zerolancom
+        robotiq_driver
+        pinocchio::pinocchio
+        Eigen3::Eigen
+        MuJoCo::MuJoCo
+        glfw
+        GL
+        X11
+    )
